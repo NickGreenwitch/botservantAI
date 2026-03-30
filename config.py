@@ -17,3 +17,10 @@ AVAILABLE_MODELS: dict[str, str] = {
     "deepseek-v3.2": "🤖 DeepSeek v3.2",
     "claude-sonnet-4.6": "✨ Claude Sonnet 4.6",
 }
+
+IMAGE_MODELS: dict[str, str] = {
+    "nano-banana": "🍌 Nano Banana",
+    "nano-banana-v2": "🍌 Nano Banana V2",
+    "grok-image": "🤖 Grok Image",
+    "seedream-5.0-lite": "🌱 Seedream 5.0 Lite",
+}

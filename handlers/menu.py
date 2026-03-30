@@ -10,7 +10,6 @@ from keyboards import models_keyboard, main_menu_keyboard
 
 class UserMode(StatesGroup):
     chat = State()
-    images = State()
     video = State()
 
 
@@ -22,15 +21,6 @@ async def enter_chat_mode(message: Message, state: FSMContext) -> None:
     await state.set_state(UserMode.chat)
     await message.answer(
         "💬 Напиши свой вопрос, и я отвечу!",
-        reply_markup=main_menu_keyboard(),
-    )
-
-
-@router.message(F.text == "🖼️ Картинки")
-async def enter_images_mode(message: Message, state: FSMContext) -> None:
-    await state.set_state(UserMode.images)
-    await message.answer(
-        "🖼️ Режим генерации картинок.\nОпиши, что хочешь увидеть!",
         reply_markup=main_menu_keyboard(),
     )
 

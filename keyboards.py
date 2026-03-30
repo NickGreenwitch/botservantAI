@@ -4,7 +4,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
 )
-from config import AVAILABLE_MODELS, CHANNEL_ID
+from config import AVAILABLE_MODELS, IMAGE_MODELS, CHANNEL_ID
 
 
 def subscription_keyboard() -> InlineKeyboardMarkup:
@@ -36,6 +36,34 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
         is_persistent=True,
+    )
+
+
+def image_models_keyboard() -> InlineKeyboardMarkup:
+    rows = []
+    items = list(IMAGE_MODELS.items())
+    # 2 buttons per row
+    for i in range(0, len(items), 2):
+        row = []
+        for model_id, label in items[i : i + 2]:
+            row.append(
+                InlineKeyboardButton(text=label, callback_data=f"img_model:{model_id}")
+            )
+        rows.append(row)
+    rows.append(
+        [InlineKeyboardButton(text="🖼️ Моя галерея — в разработке", callback_data="img_gallery")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def image_mode_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✏️ Text to Image", callback_data="img_mode:t2i"),
+                InlineKeyboardButton(text="🖼️ Image to Image", callback_data="img_mode:i2i"),
+            ]
+        ]
     )
 
 

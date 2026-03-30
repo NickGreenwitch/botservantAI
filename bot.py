@@ -84,11 +84,12 @@ async def main() -> None:
     dp.message.middleware(SubscriptionMiddleware())
     dp.callback_query.middleware(SubscriptionMiddleware())
 
-    # Include routers — order matters: start first, then menu, then mode handlers
+    # Include routers — order matters:
+    # start first, then images (own FSM + menu button), then menu, then chat/video
     dp.include_router(start.router)
+    dp.include_router(images.router)
     dp.include_router(menu.router)
     dp.include_router(chat.router)
-    dp.include_router(images.router)
     dp.include_router(video.router)
 
     logger.info("Starting ServantAI bot...")
