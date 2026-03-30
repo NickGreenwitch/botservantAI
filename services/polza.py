@@ -6,9 +6,9 @@ from config import POLZA_API_KEY, POLZA_BASE_URL
 
 logger = logging.getLogger(__name__)
 
-# Timeouts: 60s for text chat, 30s for media task creation, no limit on polling
+# Timeouts: 60s for text chat, 60s for media task creation (async=true returns fast)
 CHAT_TIMEOUT = aiohttp.ClientTimeout(total=60)
-MEDIA_TIMEOUT = aiohttp.ClientTimeout(total=30)
+MEDIA_TIMEOUT = aiohttp.ClientTimeout(total=60)
 
 
 class PolzaClient:
@@ -48,7 +48,7 @@ class PolzaClient:
     ) -> dict:
         """POST /v1/media and return the raw JSON response."""
         url = f"{self.base_url}/media"
-        payload = {"model": model, "input": input_obj}
+        payload = {"model": model, "input": input_obj, "async": True}
         logger.info("Media task: model=%s", model)
         async with session.post(url, json=payload, headers=self.headers) as resp:
             if resp.status not in (200, 201):
@@ -131,16 +131,58 @@ class PolzaClient:
 
     # ── Video Generation (Media API) ──────────────────────────
 
+    @staticmethod
+    def _build_video_input(
+        model: str,
+        prompt: str,
+        image_b64: str | None = None,
+    ) -> dict:
+        """Build model-specific input object for video generation."""
+        has_image = image_b64 is not None
+        images = [{"type": "base64", "data": image_b64}] if has_image else []
+
+        if model.startswith("kling/"):
+            # Kling requires: duration (string!), mode, sound
+            return {
+                "prompt": prompt,
+                "aspect_ratio": "16:9",
+                "duration": "5",
+                "mode": "std",
+                "sound": "false",
+                "images": images,
+            }
+        elif model.startswith("google/veo"):
+            # Veo 3.1 requires: generationType
+            gen_type = "REFERENCE_2_VIDEO" if has_image else "TEXT_2_VIDEO"
+            return {
+                "prompt": prompt,
+                "aspect_ratio": "16:9",
+                "generationType": gen_type,
+                "enableTranslation": "true",
+                "images": images,
+            }
+        elif model.startswith("openai/sora"):
+            # Sora 2
+            return {
+                "prompt": prompt,
+                "aspect_ratio": "16:9",
+                "images": images,
+            }
+        else:
+            # Fallback
+            return {
+                "prompt": prompt,
+                "images": images,
+            }
+
     async def generate_video(
         self,
         prompt: str,
-        model: str = "veo-3.1-fast",
+        model: str = "google/veo3_fast",
         image_b64: str | None = None,
     ) -> str:
         """Generate a video via Media API. Returns the result URL."""
-        input_obj: dict = {"prompt": prompt}
-        if image_b64 is not None:
-            input_obj["images"] = [{"type": "base64", "data": image_b64}]
+        input_obj = self._build_video_input(model, prompt, image_b64)
         logger.info("Video generation: model=%s, has_source=%s", model, image_b64 is not None)
 
         async with aiohttp.ClientSession(timeout=MEDIA_TIMEOUT) as session:
