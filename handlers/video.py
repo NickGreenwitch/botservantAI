@@ -8,15 +8,12 @@ from services.polza import PolzaClient
 router = Router()
 polza = PolzaClient()
 
+MENU_BUTTONS = {"💬 Чат с ИИ", "🖼️ Картинки", "🎬 Видео", "🤖 Выбрать модель", "👤 Профиль"}
+
 
 @router.message(UserMode.video)
 async def handle_video_message(message: Message, state: FSMContext) -> None:
-    if not message.text:
-        return
-
-    # Check if user pressed a menu button — don't process as video
-    menu_buttons = {"💬 Чат с ИИ", "🖼️ Картинки", "🎬 Видео", "🤖 Выбрать модель", "👤 Профиль"}
-    if message.text in menu_buttons:
+    if not message.text or message.text in MENU_BUTTONS:
         return
 
     result = await polza.generate_video(prompt=message.text)

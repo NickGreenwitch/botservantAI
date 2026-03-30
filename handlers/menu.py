@@ -3,6 +3,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from config import AVAILABLE_MODELS
 from database import get_user, update_selected_model
 from keyboards import models_keyboard, main_menu_keyboard
 
@@ -20,7 +21,7 @@ router = Router()
 async def enter_chat_mode(message: Message, state: FSMContext) -> None:
     await state.set_state(UserMode.chat)
     await message.answer(
-        "💬 Режим чата с ИИ активирован.\nОтправь мне сообщение, и я отвечу!",
+        "💬 Напиши свой вопрос, и я отвечу!",
         reply_markup=main_menu_keyboard(),
     )
 
@@ -54,14 +55,13 @@ async def choose_model(message: Message) -> None:
 
 @router.callback_query(F.data.startswith("select_model:"))
 async def callback_select_model(callback: CallbackQuery) -> None:
-    model = callback.data.split(":", 1)[1]
+    model_id = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
-    await update_selected_model(user_id, model)
-    user = await get_user(user_id)
-    current_model = user["selected_model"] if user else model
+    await update_selected_model(user_id, model_id)
+
+    model_label = AVAILABLE_MODELS.get(model_id, model_id)
     await callback.message.edit_text(
-        f"✅ Модель изменена на: <b>{model}</b>",
-        parse_mode="HTML",
+        f"✅ Модель {model_label} выбрана!",
     )
     await callback.answer()
 
@@ -74,11 +74,12 @@ async def show_profile(message: Message) -> None:
         return
     username = f"@{user['username']}" if user["username"] else "не указан"
     created = user["created_at"][:10] if user["created_at"] else "неизвестно"
+    model_label = AVAILABLE_MODELS.get(user["selected_model"], user["selected_model"])
     text = (
         f"👤 <b>Профиль</b>\n\n"
         f"Имя: {user['full_name']}\n"
         f"Юзернейм: {username}\n"
-        f"Модель: {user['selected_model']}\n"
+        f"Модель: {model_label}\n"
         f"Дата регистрации: {created}"
     )
     await message.answer(text, parse_mode="HTML")

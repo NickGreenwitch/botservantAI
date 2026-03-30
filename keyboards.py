@@ -41,9 +41,9 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
 
 def models_keyboard(current_model: str) -> InlineKeyboardMarkup:
     buttons = []
-    for model in AVAILABLE_MODELS:
-        label = f"✅ {model}" if model == current_model else model
+    for model_id, label in AVAILABLE_MODELS.items():
+        display = f"👉 {label}" if model_id == current_model else label
         buttons.append(
-            [InlineKeyboardButton(text=label, callback_data=f"select_model:{model}")]
+            [InlineKeyboardButton(text=display, callback_data=f"select_model:{model_id}")]
         )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
