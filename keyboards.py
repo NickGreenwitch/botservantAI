@@ -4,7 +4,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
 )
-from config import AVAILABLE_MODELS, IMAGE_MODELS, CHANNEL_ID
+from config import AVAILABLE_MODELS, IMAGE_MODELS, VIDEO_MODELS, CHANNEL_ID
 
 
 def subscription_keyboard() -> InlineKeyboardMarkup:
@@ -39,10 +39,11 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+# ── Image keyboards ──────────────────────────────────────────
+
 def image_models_keyboard() -> InlineKeyboardMarkup:
     rows = []
     items = list(IMAGE_MODELS.items())
-    # 2 buttons per row
     for i in range(0, len(items), 2):
         row = []
         for model_id, label in items[i : i + 2]:
@@ -66,6 +67,37 @@ def image_mode_keyboard() -> InlineKeyboardMarkup:
         ]
     )
 
+
+# ── Video keyboards ──────────────────────────────────────────
+
+def video_models_keyboard() -> InlineKeyboardMarkup:
+    rows = []
+    items = list(VIDEO_MODELS.items())
+    for i in range(0, len(items), 2):
+        row = []
+        for model_id, label in items[i : i + 2]:
+            row.append(
+                InlineKeyboardButton(text=label, callback_data=f"vid_model:{model_id}")
+            )
+        rows.append(row)
+    rows.append(
+        [InlineKeyboardButton(text="☁️ Мои видео — в разработке", callback_data="vid_gallery")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def video_mode_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📝 Text to Video", callback_data="vid_mode:t2v"),
+                InlineKeyboardButton(text="🖼️ Image to Video", callback_data="vid_mode:i2v"),
+            ]
+        ]
+    )
+
+
+# ── Text model keyboard ──────────────────────────────────────
 
 def models_keyboard(current_model: str) -> InlineKeyboardMarkup:
     buttons = []

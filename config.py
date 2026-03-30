@@ -24,3 +24,9 @@ IMAGE_MODELS: dict[str, str] = {
     "grok-image": "🤖 Grok Image",
     "seedream-5.0-lite": "🌱 Seedream 5.0 Lite",
 }
+
+VIDEO_MODELS: dict[str, str] = {
+    "veo-3.1-fast": "🎬 Veo 3.1 Fast",
+    "sora-2": "🎥 Sora 2",
+    "kling-3.0": "🎞️ Kling 3.0",
+}
