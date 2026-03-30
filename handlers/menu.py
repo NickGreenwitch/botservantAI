@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -6,6 +8,8 @@ from aiogram.fsm.state import State, StatesGroup
 from config import AVAILABLE_MODELS
 from database import get_user, update_selected_model
 from keyboards import models_keyboard, main_menu_keyboard
+
+logger = logging.getLogger(__name__)
 
 
 class UserMode(StatesGroup):
@@ -18,6 +22,7 @@ router = Router()
 @router.message(F.text == "💬 Чат с ИИ")
 async def enter_chat_mode(message: Message, state: FSMContext) -> None:
     await state.set_state(UserMode.chat)
+    logger.info("User %d entered chat mode", message.from_user.id)
     await message.answer(
         "💬 Напиши свой вопрос, и я отвечу!",
         reply_markup=main_menu_keyboard(),
@@ -28,6 +33,7 @@ async def enter_chat_mode(message: Message, state: FSMContext) -> None:
 async def choose_model(message: Message) -> None:
     user = await get_user(message.from_user.id)
     current_model = user["selected_model"] if user else "auto"
+    logger.info("User %d opened model picker, current=%s", message.from_user.id, current_model)
     await message.answer(
         "Выбери модель ИИ:", reply_markup=models_keyboard(current_model)
     )
@@ -40,6 +46,7 @@ async def callback_select_model(callback: CallbackQuery) -> None:
     await update_selected_model(user_id, model_id)
 
     model_label = AVAILABLE_MODELS.get(model_id, model_id)
+    logger.info("User %d selected text model: %s", user_id, model_id)
     await callback.message.edit_text(
         f"✅ Модель {model_label} выбрана!",
     )
@@ -52,6 +59,7 @@ async def show_profile(message: Message) -> None:
     if user is None:
         await message.answer("Профиль не найден. Отправь /start для регистрации.")
         return
+    logger.info("User %d viewed profile", message.from_user.id)
     username = f"@{user['username']}" if user["username"] else "не указан"
     created = user["created_at"][:10] if user["created_at"] else "неизвестно"
     model_label = AVAILABLE_MODELS.get(user["selected_model"], user["selected_model"])

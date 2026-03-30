@@ -6,7 +6,6 @@ from aiogram.fsm.context import FSMContext
 
 from handlers.menu import UserMode
 from database import get_user, update_last_active
-from keyboards import main_menu_keyboard
 from services.polza import PolzaClient
 
 logger = logging.getLogger(__name__)
@@ -23,6 +22,7 @@ async def handle_chat_message(message: Message, state: FSMContext) -> None:
 
     user = await get_user(message.from_user.id)
     model = user["selected_model"] if user else "auto"
+    logger.info("Chat from user %d: model=%s len=%d", message.from_user.id, model, len(message.text))
 
     thinking_msg = await message.answer("🤖 Думаю...")
     await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
@@ -32,9 +32,10 @@ async def handle_chat_message(message: Message, state: FSMContext) -> None:
     try:
         response = await polza.chat(model=model, messages=messages)
     except Exception as e:
-        logger.error("Polza chat error: %s", e)
+        logger.error("Chat error for user %d: %s", message.from_user.id, e)
         await thinking_msg.edit_text("❌ Ошибка при обращении к ИИ. Попробуй ещё раз.")
         return
 
     await update_last_active(message.from_user.id)
+    logger.info("Chat reply sent to user %d: %d chars", message.from_user.id, len(response))
     await thinking_msg.edit_text(response)

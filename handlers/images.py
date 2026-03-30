@@ -29,6 +29,7 @@ class ImageMode(StatesGroup):
 @router.message(F.text == "🖼️ Картинки")
 async def enter_images(message: Message, state: FSMContext) -> None:
     await state.clear()
+    logger.info("User %d entered image menu", message.from_user.id)
     await message.answer(
         "🖼️ Выбери модель для генерации изображений:",
         reply_markup=image_models_keyboard(),
@@ -42,6 +43,7 @@ async def pick_image_model(callback: CallbackQuery, state: FSMContext) -> None:
     model_id = callback.data.split(":", 1)[1]
     label = IMAGE_MODELS.get(model_id, model_id)
     await state.update_data(img_model=model_id, img_model_label=label)
+    logger.info("User %d picked image model: %s", callback.from_user.id, model_id)
     await callback.message.edit_text(
         f"Модель: <b>{label}</b>\n\nВыбери режим:",
         parse_mode="HTML",
@@ -60,6 +62,7 @@ async def gallery_placeholder(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "img_mode:t2i")
 async def mode_text_to_image(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(ImageMode.waiting_t2i_prompt)
+    logger.info("User %d chose Text-to-Image", callback.from_user.id)
     await callback.message.edit_text("✏️ Опиши, что хочешь увидеть:")
     await callback.answer()
 
@@ -67,6 +70,7 @@ async def mode_text_to_image(callback: CallbackQuery, state: FSMContext) -> None
 @router.callback_query(F.data == "img_mode:i2i")
 async def mode_image_to_image(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(ImageMode.waiting_i2i_photo)
+    logger.info("User %d chose Image-to-Image", callback.from_user.id)
     await callback.message.edit_text("🖼️ Пришли исходное фото:")
     await callback.answer()
 
@@ -82,14 +86,20 @@ async def handle_t2i_prompt(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     model_id = data.get("img_model", "nano-banana")
     model_label = data.get("img_model_label", model_id)
+    logger.info("T2I from user %d: model=%s prompt=%s", message.from_user.id, model_id, message.text[:80])
 
     status_msg = await message.answer("🎨 Генерирую изображение...")
     await message.bot.send_chat_action(chat_id=message.chat.id, action="upload_photo")
 
     try:
         image_url = await polza.generate_image(prompt=message.text, model=model_id)
+    except TimeoutError:
+        logger.warning("T2I timeout for user %d", message.from_user.id)
+        await status_msg.edit_text("⏳ Генерация заняла слишком долго. Попробуй позже.")
+        await state.clear()
+        return
     except Exception as e:
-        logger.error("Image generation error: %s", e)
+        logger.error("T2I error for user %d: %s", message.from_user.id, e)
         await status_msg.edit_text("❌ Ошибка генерации. Попробуй другой промпт или модель.")
         await state.clear()
         return
@@ -104,10 +114,11 @@ async def handle_t2i_prompt(message: Message, state: FSMContext) -> None:
             caption=f"✅ Готово! Модель: {model_label}",
             reply_markup=main_menu_keyboard(),
         )
+        logger.info("T2I result sent to user %d", message.from_user.id)
     except Exception as e:
-        logger.error("Failed to send image: %s", e)
+        logger.error("Failed to send image to user %d: %s", message.from_user.id, e)
         await message.answer(
-            f"⚠️ Не удалось отправить изображение: {e}",
+            "⚠️ Не удалось отправить изображение. Попробуй ещё раз.",
             reply_markup=main_menu_keyboard(),
         )
 
@@ -118,7 +129,6 @@ async def handle_t2i_prompt(message: Message, state: FSMContext) -> None:
 
 @router.message(ImageMode.waiting_i2i_photo, F.photo)
 async def handle_i2i_photo(message: Message, state: FSMContext, bot: Bot) -> None:
-    # Download the largest photo
     photo = message.photo[-1]
     file = await bot.get_file(photo.file_id)
     bio = await bot.download_file(file.file_path)
@@ -126,7 +136,17 @@ async def handle_i2i_photo(message: Message, state: FSMContext, bot: Bot) -> Non
 
     await state.update_data(source_image_b64=image_b64)
     await state.set_state(ImageMode.waiting_i2i_prompt)
+    logger.info("I2I photo received from user %d (%d bytes)", message.from_user.id, len(image_b64))
     await message.answer("✏️ Теперь опиши, что хочешь изменить или получить:")
+
+
+@router.message(ImageMode.waiting_i2i_photo, F.document)
+async def handle_i2i_document(message: Message, state: FSMContext) -> None:
+    await message.answer(
+        "⚠️ Пожалуйста, отправь как <b>фото</b>, а не как файл.\n"
+        "Нажми скрепку → выбери фото → отправь без галочки «Файл».",
+        parse_mode="HTML",
+    )
 
 
 @router.message(ImageMode.waiting_i2i_photo)
@@ -149,6 +169,7 @@ async def handle_i2i_prompt(message: Message, state: FSMContext) -> None:
     model_id = data.get("img_model", "nano-banana")
     model_label = data.get("img_model_label", model_id)
     source_b64 = data.get("source_image_b64")
+    logger.info("I2I from user %d: model=%s prompt=%s", message.from_user.id, model_id, message.text[:80])
 
     status_msg = await message.answer("🎨 Генерирую...")
     await message.bot.send_chat_action(chat_id=message.chat.id, action="upload_photo")
@@ -157,8 +178,13 @@ async def handle_i2i_prompt(message: Message, state: FSMContext) -> None:
         image_url = await polza.generate_image(
             prompt=message.text, model=model_id, image_b64=source_b64,
         )
+    except TimeoutError:
+        logger.warning("I2I timeout for user %d", message.from_user.id)
+        await status_msg.edit_text("⏳ Генерация заняла слишком долго. Попробуй позже.")
+        await state.clear()
+        return
     except Exception as e:
-        logger.error("Image generation error (i2i): %s", e)
+        logger.error("I2I error for user %d: %s", message.from_user.id, e)
         await status_msg.edit_text("❌ Ошибка генерации. Попробуй другой промпт или модель.")
         await state.clear()
         return
@@ -173,10 +199,11 @@ async def handle_i2i_prompt(message: Message, state: FSMContext) -> None:
             caption=f"✅ Готово! Модель: {model_label}",
             reply_markup=main_menu_keyboard(),
         )
+        logger.info("I2I result sent to user %d", message.from_user.id)
     except Exception as e:
-        logger.error("Failed to send image: %s", e)
+        logger.error("Failed to send image to user %d: %s", message.from_user.id, e)
         await message.answer(
-            f"⚠️ Не удалось отправить изображение: {e}",
+            "⚠️ Не удалось отправить изображение. Попробуй ещё раз.",
             reply_markup=main_menu_keyboard(),
         )
 

@@ -3,7 +3,7 @@ import logging
 import sys
 
 from aiogram import Bot, Dispatcher, BaseMiddleware
-from aiogram.types import Message, CallbackQuery, TelegramObject
+from aiogram.types import Message, CallbackQuery, TelegramObject, BotCommand
 from aiogram.fsm.storage.memory import MemoryStorage
 from typing import Any, Awaitable, Callable
 
@@ -13,6 +13,8 @@ from keyboards import subscription_keyboard
 
 from handlers import start, menu, chat, images, video
 
+logger = logging.getLogger(__name__)
+
 
 class SubscriptionMiddleware(BaseMiddleware):
     async def __call__(
@@ -21,9 +23,10 @@ class SubscriptionMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        # Allow /start command through
-        if isinstance(event, Message) and event.text and event.text.startswith("/start"):
-            return await handler(event, data)
+        # Allow /start and /help commands through
+        if isinstance(event, Message) and event.text:
+            if event.text.startswith("/start") or event.text.startswith("/help"):
+                return await handler(event, data)
 
         # Allow subscription check callback through
         if isinstance(event, CallbackQuery) and event.data == "check_subscription":
@@ -51,6 +54,7 @@ class SubscriptionMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         # Not subscribed — show subscription prompt
+        logger.info("Blocked unsubscribed user %d", user.id)
         text = (
             "❌ Для использования бота необходима подписка на канал @yandertakerai.\n\n"
             "Подпишись и нажми «Проверить подписку»."
@@ -65,13 +69,28 @@ class SubscriptionMiddleware(BaseMiddleware):
         return None
 
 
+async def on_startup(bot: Bot) -> None:
+    """Set bot commands menu and log startup."""
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="help", description="Справка о возможностях"),
+    ])
+    logger.info("Bot commands registered, startup complete.")
+
+
+async def on_shutdown(bot: Bot) -> None:
+    """Graceful shutdown: close bot session."""
+    logger.info("Shutting down ServantAI...")
+    await bot.session.close()
+    logger.info("Bot session closed.")
+
+
 async def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         stream=sys.stdout,
     )
-    logger = logging.getLogger(__name__)
 
     logger.info("Initializing database...")
     await init_db()
@@ -79,6 +98,10 @@ async def main() -> None:
     bot = Bot(token=BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
+
+    # Lifecycle hooks
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
 
     # Register middleware on both message and callback_query
     dp.message.middleware(SubscriptionMiddleware())
